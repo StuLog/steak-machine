@@ -83,6 +83,14 @@ class XStateMachine():
                 self.stateChange()
         return self.currentState, prevstate, outcome
     
+    #Runs the state machine one or more times.
+    def run(self, count:int = 1):
+        if count<=0:
+            if self.debug:
+                print("run had invalid count")
+            return "No Runs"
+        return [self.__call__() for i in range(count)]
+    
     #Sets the start state for the machine
     def setStartState(self,state:str):
         if state in self.statesDict.keys():
