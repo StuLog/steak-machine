@@ -75,7 +75,7 @@ class XStateMachine():
         if self.isLocked:
             if self.getTime() - self.lockTime >= self.lockDuration:
                 self.isLocked = False
-            else:
+            elif self.debug:
                 return("SM Locked for ", self.lockDuration +self.lockTime - self.getTime()," Time Units")
             
         if self.currentState in self.statesDict.keys():
