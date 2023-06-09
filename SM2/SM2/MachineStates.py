@@ -179,9 +179,48 @@ class SteeringActivation(XState):
     def __init__(self):
         super().__init__(["steering_activation_to_propulsion_activation","steering_activation_to_activation_failure"])
     def execute(self):
+        checksPassed = True
+
+        # Check abs(SteerAngle) < 10 
+        if abs(float(self.message1e5.Data['StrWhAng'])) > 10:
+            print("Steering wheel is over 10 degrees: ", self.message1e5.Data['StrWhAng'])
+            checksPassed = False
+
+        # Check abs(LKADrvAppldTrq) < 0.2
+        elif abs(float(self.message184.Data['LKADrvAppldTrq'])) > 0.2:
+            print("Steering torque above 0.05 Nm: ", self.message184.Data['LKADrvAppldTrq'])
+            checksPassed = False
+
+        # Check ElecPwrStrAvalStat == Available for control
+        elif self.message335.Data['ElecPwrStrAvalStat'] != "Available for control":
+            print("Steering wheel is not in correct Auth State: ", self.message335.Data['ElecPwrStrAvalStat'])
+            return "steering_activation_to_activation_failure"
+
+        if checksPassed:
+
+            # Steering.angle == SteerAngle - Needs CAN Code!!!!!!!!!!!
+
+            # Steering.active == True
+            self.message337.update_data([1,1,0,0])
+
+            # AvState.SteeringCtrlActive == True - Needs CAN Code!!!!!!!!!!!!!
+
+            # Wait 500ms !!!!!!!!!!!!!
+            
+            
+            # Check ElecPwrStrAvalStat == Active
+            if self.message335.Data['ElecPwrStrAvalStat'] != "Active":
+                print("Steering wheel is not in correct Auth State: ", self.message335.Data['ElecPwrStrAvalStat'])
+                return "steering_activation_to_activation_failure"
+            
+
+            return "steering_activation_to_propulsion_activation"
+        else:
+            return "steering_activation_to_activation_failure"
+
+
         return "self"
-        return "steering_activation_to_propulsion_activation"
-        return "steering_activation_to_activation_failure"
+        
     
 class PropulsionActivation(XState):
     def __init__(self):
