@@ -240,35 +240,41 @@ class WaitForBrakeRelease(XState):
 class SteeringActivation(XState):
     def __init__(self):
         super().__init__(["steering_activation_to_propulsion_activation","steering_activation_to_activation_failure"])
+        self.stage = 0
     def execute(self):
-        checksPassed = True
+        
+        if(self.stage == 0):
+            checksPassed = True
+            # Check abs(SteerAngle) < 10
+            if abs(float(self.message1e5.Data['StrWhAng'])) > 10:
+                print("Steering wheel is over 10 degrees: ",
+                      self.message1e5.Data['StrWhAng'])
+                checksPassed = False
 
-        # Check abs(SteerAngle) < 10
-        if abs(float(self.message1e5.Data['StrWhAng'])) > 10:
-            print("Steering wheel is over 10 degrees: ",
-                  self.message1e5.Data['StrWhAng'])
-            checksPassed = False
+            # Check abs(LKADrvAppldTrq) < 0.2
+            elif abs(float(self.message184.Data['LKADrvAppldTrq'])) > 0.2:
+                print("Steering torque above 0.05 Nm: ",
+                      self.message184.Data['LKADrvAppldTrq'])
+                checksPassed = False
 
-        # Check abs(LKADrvAppldTrq) < 0.2
-        elif abs(float(self.message184.Data['LKADrvAppldTrq'])) > 0.2:
-            print("Steering torque above 0.05 Nm: ",
-                  self.message184.Data['LKADrvAppldTrq'])
-            checksPassed = False
+            # Check ElecPwrStrAvalStat == Available for control
+            elif self.message335.Data['ElecPwrStrAvalStat'] != "Available for control":
+                print("Steering wheel is not in correct Auth State: ",
+                      self.message335.Data['ElecPwrStrAvalStat'])
+                return "steering_activation_to_activation_failure"
 
-        # Check ElecPwrStrAvalStat == Available for control
-        elif self.message335.Data['ElecPwrStrAvalStat'] != "Available for control":
-            print("Steering wheel is not in correct Auth State: ",
-                  self.message335.Data['ElecPwrStrAvalStat'])
-            return "steering_activation_to_activation_failure"
+            if checksPassed:
+                message337.update_data([message337.Data['StrWhlTctlFdbkReqAct'], 1, message337.Data['SWAR_ReqActV'], 0, message337.Data['StrWhlAngReqARC']])
 
-        if checksPassed:
-            message337.update_data([message337.Data['StrWhlTctlFdbkReqAct'], 1, message337.Data['SWAR_ReqActV'], 0, message337.Data['StrWhlAngReqARC']])
-
-            message11.update_data(
-                [message11.Data['GlobalAutonomyStatus'], 1, message11.Data['FrictionBrakeCtrlActive'], message11.Data['PropulsionCtrlActive']])
-
-            # Wait 500ms !!!!!!!!!!!!!
-
+                message11.update_data(
+                    [message11.Data['GlobalAutonomyStatus'], 1, message11.Data['FrictionBrakeCtrlActive'], message11.Data['PropulsionCtrlActive']])
+                self.stage = 1
+                self.lock(0.5)
+                return "self"
+            else:
+                return "steering_activation_to_activation_failure"
+        else 
+            self.stage = 0
             # Check ElecPwrStrAvalStat == Active
             if self.message335.Data['ElecPwrStrAvalStat'] != "Active":
                 print("Steering wheel is not in correct Auth State: ",
@@ -276,10 +282,6 @@ class SteeringActivation(XState):
                 return "steering_activation_to_activation_failure"
 
             return "steering_activation_to_propulsion_activation"
-        else:
-            return "steering_activation_to_activation_failure"
-
-        return "self"
         
     
 class PropulsionActivation(XState):
