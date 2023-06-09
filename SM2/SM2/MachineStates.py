@@ -79,7 +79,23 @@ class ActivationFailure(XState):
     def __init__(self):
         super().__init__(["activation_failure_to_passive"])
     def execute(self):
-        return "self"
+        # Steering.active = False
+        message337.update_data([0,0,0,0])
+
+        # Brake.mode = No Braking
+        message315.update_data([0,1,0])
+
+        # Accel.active = False
+        message1e1.update_data([0,0,0,0,0,0,0])
+
+        # AVState.FrictionBrakeCtrlActive = False
+        # AVState.SteeringCtrlActive = False
+        # AVState.PropulsionCtrlActive = False
+        # AVState.GlobalAutonomyStatus = Inactive
+        message11.update_data([1,0,0,0])
+        # never returns to self since no checks
+        # return "self"
+
         return "activation_failure_to_passive"
 
 # exec by DJ
