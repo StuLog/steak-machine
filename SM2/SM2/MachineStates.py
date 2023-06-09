@@ -103,9 +103,88 @@ class ActivationConditionCheck(XState):
     def __init__(self):
         super().__init__(["activation_condition_check_to_activation_failure","activation_condition_check_to_brake_activation"])
     def execute(self):
+        checksPassed = True
+
+        # Check Engine Run Active == True
+        if self.messagec9.Data['EngRunAtv'] != "true":
+            print("EngRunAtv not True: ", self.messagec9.Data['EngRunAtv'])
+            checksPassed = False
+
+        # Check abs(SteerAngle) < 10 
+        elif abs(float(self.message1e5.Data['StrWhAng'])) > 10:
+            print("Steering wheel is over 10 degrees: ", self.message1e5.Data['StrWhAng'])
+            checksPassed = False
+
+        # Check abs(LKADrvAppldTrq) < 0.2
+        elif abs(float(self.message184.Data['LKADrvAppldTrq'])) > 0.2:
+            print("Steering torque above 0.05 Nm: ", self.message184.Data['LKADrvAppldTrq'])
+            checksPassed = False
+
+        # Check 184 Message Age < 300ms
+        elif self.message184.age > 0.3:
+            print("184 aged out - please wait: ", self.message184.age)
+            checksPassed = False
+
+        # Check VehSpdAvgDrvn == 0
+        elif float(self.message3e9.Data['VehSpdAvgDrvn']) != 0:
+            print("Vehicle is not stopped: ", self.message3e9.Data['VehSpdAvgDrvn'])
+            checksPassed = False
+
+        # Check VehSpdAvgNDrvn == 0
+        elif float(self.message3e9.Data['VehSpdAvgNDrvn']) != 0:
+            print("Vehicle is not stopped(NDrvn): ", self.message3e9.Data['VehSpdAvgNDrvn'])
+            checksPassed = False
+
+        # Check 3E9 Message Age < 300ms
+        elif self.message3e9.age > 0.3:
+            print("3e9 aged out - please wait: ", self.message3e9.age)
+            checksPassed = False
+
+        # Check BrkPedTrvlAchvd == True
+        elif self.messagef1.Data['BrkPedTrvlAchvd'] != "true":
+            print("Brake Pedal Not Depressed: ", self.messagef1.Data['BrkPedTrvlAchvd'])
+            checksPassed = False
+
+        # Check ElecPrkBrkStat == 'Released'
+        elif self.message230.Data['ElecPrkBrkStat'] != "Released":
+            print("Parking Brake Applied: ", self.message230.Data['ElecPrkBrkStat'])
+            checksPassed = False
+
+        # Check 170 Message Age is < 30ms
+        elif self.message170.age > 0.03:
+            print("170 self.message aged out - please wait: ", self.message170.age)
+            checksPassed = False
+
+        # Check Driver Seatbelt Attached == True
+        elif self.message12a.Data['DrSbltAtc'] != "true":
+            print("Please Fasten Your Seatbelt Silly: ", self.message12a.Data['DrSbltAtc'])
+            checksPassed = False
+
+        # Check All Door Ajar Switches == False
+        elif self.message12a.Data['PDAjrSwAtv'] != "false":
+            print("Passenger Door Open: ", self.message12a.Data['PDAjrSwAtv'])
+            checksPassed = False
+
+        elif self.message12a.Data['DDAjrSwAtv'] != "false":
+            print("Driver Door Open: ", self.message12a.Data['DDAjrSwAtv'])
+            checksPassed = False
+
+        elif self.message12a.Data['RLDoorAjarSwAct'] != "false":
+            print("Rear Left Door Open: ", self.message12a.Data['RLDoorAjarSwAct'])
+            checksPassed = False
+            
+        elif self.message12a.Data['RRDoorAjarSwAct'] != "false": 
+            print("Rear Right Door Open: ", self.message12a.Data['RRDoorAjarSwAct'])
+            checksPassed = False
+
+        if checksPassed:
+            print("All Activation Checks passed! Vehicle should proceed to activation states.") 
+            return "activation_condition_check_to_brake_activation"
+        else:
+            return "activation_condition_check_to_activation_failure"
+
         return "self"
-        return "activation_condition_check_to_activation_failure"
-        return "activation_condition_check_to_brake_activation"
+        
 
 class BrakeActivation(XState):
     def __init__(self):
