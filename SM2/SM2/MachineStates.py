@@ -1,19 +1,25 @@
+#Library Imports
 import rclpy
 import ics
 import cantools
 import can
 from rclpy.node import Node
-from XStateMachine import XState
 
+#Custom File imports
+from XStateMachine import XState
 from canFunctions import SMessage
 from canFunctions import open_device
 from canFunctions import get_protect_value
 from canFunctions import transmit_can
 
+#Constants
+DEBUG_PRINT = True
+
+#Open devices
 HS_LS_tx_rx_dev = open_device(1)
 SC_CE_tx_rx_dev = open_device(0)
 
-
+#Magic shit and dbc files
 ics.override_library_name("/home/autodrive/CANbus/libicsneo/libicsneolegacy.so")
 CE_db = cantools.database.load_file("/home/autodrive/CANbus/ADC_CE.dbc")
 SC_db = cantools.database.load_file("/home/autodrive/CANbus/ADC_SC.dbc")
@@ -46,7 +52,9 @@ message7e0 = SMessage(HS_db, '7e0', '0x7e0', [7,35,64,2,35,38,0,1]) #TODONE SEND
 message7e8 = SMessage(HS_db, '7e8', '0x7e8', [0])
 message335 = SMessage(CE_db, 'Electric_Power_Steering_CE', '0x335', [0,0,0])
 
-# Stuart
+
+#------State Machine and States-------
+# exec by Stuart - Done
 class Startup(XState):
     def __init__(self):
         super().__init__(["startup_to_passive"])
@@ -58,7 +66,7 @@ class Startup(XState):
         message11.update_data([1,0,0],True)
         return "startup_to_passive"
 
-# Michael  
+# exec by Michael  
 class Passive(XState):
     def __init__(self):
         super().__init__(["passive_to_activation_condition_check"])
@@ -66,7 +74,7 @@ class Passive(XState):
         return "self"
         return "passive_to_activation_condition_check"
 
-# Ryan
+# exec by Ryan
 class ActivationFailure(XState):
     def __init__(self):
         super().__init__(["activation_failure_to_passive"])
@@ -74,7 +82,7 @@ class ActivationFailure(XState):
         return "self"
         return "activation_failure_to_passive"
 
-# DJ
+# exec by DJ
 class ActivationConditionCheck(XState):
     def __init__(self):
         super().__init__(["activation_condition_check_to_activation_failure","activation_condition_check_to_brake_activation"])
@@ -136,7 +144,6 @@ def initStateMachine():
     machine = XStateMachine(["should_not_appear"]) 
 
     #Add each state and connections to the machine
-    
     #Startup, goes to passive
     machine.addState("Startup", Startup(), 
                 transitions = {"startup_to_passive":"Passive"})
