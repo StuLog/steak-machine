@@ -229,10 +229,6 @@ class BrakeActivation(XState):
         return "brake_activation_to_activation_failure"
 
 
-        # no "wait for" so dont have to return self??
-        # return "self"
-
-
 class WaitForBrakeRelease(XState):
     def __init__(self):
         super().__init__(["wait_for_brake_release_to_activation_failure","wait_for_brake_release_to_steering_activation"])
@@ -291,22 +287,27 @@ class SteeringActivation(XState):
 class PropulsionActivation(XState):
     def __init__(self):
         super().__init__(["propulsion_activation_to_activation_failure","propulsion_activation_to_active_mode_loop"])
+        self.stage = 0
     def execute(self):
-        return "self"
-        Not_good = True
-        while(Not_good):
+        if self.stage = 0:
             message2cb.update_data([0,0,0,0,0])
             message1e1.update_data([1,0,0,0,3])
-            #TODO WAIT 100ms
+            self.stage = 1
+            self.lock(0.1)
+            return "self"
+        elif self.stage = 1:
             message1e1.update_data([1,0,0,0,1])
-            #TODO WAIT 500ms
-            # Check TorqueAuthActive == True
+            self.stage = 2
+            self.lock(0.5)
+            return "self"
+        elif self.stage = 2:
+            self.stage = 0
             if(message7e8.Data == 1):
-                Not_good = False
-            message2cb.update_data([0,1,0,0,0], True)
-            message11.update_data([2,1,1,1], True)
+                message2cb.update_data([0,1,0,0,0], True)
+                message11.update_data([2,1,1,1], True)
+                return "propulsion_activation_to_active_mode_loop"
         return "propulsion_activation_to_activation_failure"
-        return "propulsion_activation_to_active_mode_loop"
+        
 
 class ActiveModeLoop(XState):
     def __init__(self):
@@ -350,14 +351,17 @@ class ActiveModeLoop(XState):
 class Deactivation(XState):
     def __init__(self):
         super().__init__(["deactivation_to_passive"])
+        self.runOnce = False
     def execute(self):
         # !!! complete? not for us
         complete = False
-        if (complete and message3e9.Data['VehSpdAvgDrvn'] == 0):
+        if (complete and message3e9.Data['VehSpdAvgDrvn'] == 0 and not self.runOnce):
             message315.update_data([message315.Data['ACCBSCE_ACCAct'],
                                     4, message315.Data['ACCBSCE_ACCAccl']])
+            #wait 2 seconds
             self.lock(2000)
-            # wait 2 sec
+            self.runOnce = True
+            return "self"
         
         message337.update_data(
             [False, message337.Data['SWAR_ReqAct'], message337.Data['SWAR_ReqActV'], message337.Data['SWAR_TrgtAng'], message337.Data['StrWhlAngReqARC']])
@@ -366,6 +370,8 @@ class Deactivation(XState):
         message2cb.update_data(
             [False, message2cb.Data['ACCATC_ACCTyp'], message2cb.Data['ACCATC_DrvAstdGoSt'], message2cb.Data['ACCATC_SplREngInpR'], message2cb.Data['ACCATC_AxlTrqRq']])
         message11.update_data([False, False, False, False])
+        
+        self.runOnce = False
   
         return "deactivation_to_passive"
     
