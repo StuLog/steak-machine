@@ -143,9 +143,22 @@ class WaitForBrakeRelease(XState):
     def __init__(self):
         super().__init__(["wait_for_brake_release_to_activation_failure","wait_for_brake_release_to_steering_activation"])
     def execute(self):
-        return "self"
-        return "wait_for_brake_release_to_activation_failure"
+        # Wait for BrkPedTrvlAchvd == False [$F1_HS]
+        if (messagef1.Data['BrkPedTrvlAchvd'] != "false"):
+            return "self"
+
+        # Wait 1 second
+        # ------------------ ADD CODE JAI -----------------
+
+
+        # Check VehSpdAvgDrvn == 0 [$3E9_HS]
+        if (message3e9.Data['VehSpdAvgDrvn'] != 0):
+            return "wait_for_brake_release_to_activation_failure"
+        # else we good
         return "wait_for_brake_release_to_steering_activation"
+
+        # need to check if time elapsed in mode is > 10s
+        # for now we will ignore the 10 second timeout
 
 class SteeringActivation(XState):
     def __init__(self):
