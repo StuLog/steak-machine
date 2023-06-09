@@ -142,9 +142,41 @@ class PropulsionActivation(XState):
 class ActiveModeLoop(XState):
     def __init__(self):
         super().__init__(["active_mode_loop_to_deactivation"])
+        self.manualTakeover = 0
     def execute(self):
-        return "self"
-        return "active_mode_loop_to_deactivation"
+        condition = np.ones(6)
+        # all numbers come from the state machine
+        if (self.manualTakeover):
+            if (message184.Data['LKADrvAppldTrq'] > 4.5*10**(-9)):
+                condition[0] = 0
+            if (message183.Data['ElcPwrStrAngAuthStat'] != "Active"):
+                condition[1] = 0
+            if (messagef1.Data['BrkPedTrvlAchvd'] != False):
+                condition[2] = 0
+            if (messagec9.Data['AccActPos'] >= 0.01):
+                condition[3] = 0
+            if (message230.Data['ElecPrkBrkStat'] != "Released"):
+                condition[4] = 0
+        else:
+            if (messagec1hs.age > 0.03):
+                condition[0] = 0
+            if (messagec1ce.age > 0.03):
+                condition[1] = 0
+            if (messagec9.age > 0.036):
+                condition[2] = 0
+            if (messagef1.age > 0.03):
+                condition[3] = 0
+            if (message183.age > 0.03):
+                condition[4] = 0
+            if (message184.age > 0.3):
+                condition[5] = 0
+
+        self.manualTakeover = not self.manualTakeover
+
+        if (np.prod(condition) == 0):
+            return "active_mode_loop_to_deactivation"
+        else:
+            return "self"
 
 class Deactivation(XState):
     def __init__(self):
