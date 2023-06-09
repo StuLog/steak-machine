@@ -1,6 +1,3 @@
-import matplotlib.pyplot as plt
-import networkx as nx
-
 class XState():
     def __init__(self,outcomes = ["default"]):
         self.outcomes = outcomes
@@ -10,12 +7,13 @@ class XState():
         return self.outcomes
     
 class XStateMachine():
-    def __init__(self, outcomes:list = ["default"]):
+    def __init__(self, outcomes:list = ["default"], debugToggle:bool = False):
         self.machineOutcomes = outcomes
         self.statesDict = {}
         self.mapDict = {}
         self.startState = ""
         self.currentState = ""
+        self.debug = debugToggle
     
     def addState(self, name:str, state:XState, transitions:dict):
         if name == "" or name in self.machineOutcomes or name in self.statesDict.keys():
@@ -25,7 +23,8 @@ class XStateMachine():
             self.currentState = name
         self.statesDict[name] = state
         self.mapDict[name] = transitions
-        print("added State")
+        if self.debug :
+            print("added State")
         return True
     
     def __call__(self):
@@ -36,50 +35,29 @@ class XStateMachine():
                 if outcome in self.mapDict[self.currentState].keys():
                     self.currentState = self.mapDict[self.currentState][outcome]
                 else:
-                    print("Outcome Fail - not in state map", end = ' ') 
-            
-            print("prev: ",prevstate," cur: ",self.currentState," outc: ",outcome)
+                    if self.debug :
+                        print("Outcome Fail - not in state map", end = ' ') 
+            if self.debug :
+                print("prev: ",prevstate," cur: ",self.currentState," outc: ",outcome)
         else:
-            return "States Stopped"
+            if self.debug :
+                return "States Stopped"
         return self.currentState, prevstate, outcome
     
     def setStartState(self,state:str):
-        if state in statesDict.keys():
+        if state in self.statesDict.keys():
             self.startState = state
             return True
         return False
     
-#     def getCurrentState()
-#         return 
     def toStart(self):
         self.currentState = self.startState
         return
     
-    def visual(self, size:int = 10):
-        #Super broken, do not use. As such, safety thing below:
-        try:
-            if size < 1:
-                return False
-
-            visual = nx.MultiDiGraph()
-            nums = {}
-            count = 1
-            for index in self.mapDict.keys():
-                nums[index] = count
-                count += 1
-            for source in nums.keys():
-                for destination in self.mapDict[source]:
-                    if destination in nums.keys():
-                        visual.add_edges_from([(nums[source],nums[destination])])
-            plt.figure(figsize = (size,size))
-            nx.draw(visual, connectionstyle='arc3, rad = 0.1')
-            plt.show()
-            print(nums)
-        except:
-            print("visualization fail, non critical")
-        return
+    def __str__(self):
+        return self.mapDict.__str__()
     
-    def getCurrentState():
+    def getCurrentState(self):
         return self.currentState
 
 class testA(XState):
