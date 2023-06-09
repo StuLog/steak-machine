@@ -187,13 +187,48 @@ class ActivationConditionCheck(XState):
         return "self"
         
 
+# Ryan
 class BrakeActivation(XState):
     def __init__(self):
         super().__init__(["brake_activation_to_activation_failure","brake_activation_to_wait_for_brake_release"])
     def execute(self):
-        return "self"
+
+        # AVState.GlobalAutonomyStatus = Active
+        # AVState.FrictionBrakeCtrlActive = True
+        message11.update_data([2,0,1,0])
+
+        # Brake.mode = Hold
+        message315.update_data([0,5,0])
+
+        # Wait 1 second
+        # ------------- TO DO ------------
+        # PLAN TO DO EXTERNALLY (i.e., dont call state machine for 1s)
+
+        # Check $170_CE Message Age < 50ms
+        if (message170.age >= 0.05):
+            print("170_CE OUT OF SCOPE AGE", message170.age)
+
+        # Check BrkSysAutBrkStat == Active [$170_CE]
+        elif (message170.Data['BrkSysAutBrkStat'] != "Active"):
+            print("BrkSysAut not active: ", message170.Data['BrkSysAutBrkStat'])
+
+        # Check BrkSysExtHldCpbltyFld == False [$170_CE]
+        elif (message170.Data['BrkSysExtHldCpbltyFld'] != "false"):
+            print("BrkSysExtHldCpbltyFld is true: ", message170.Data['BrkSysExtHldCpbltyFld'])
+
+        # Check FSRACCBrkngReqDenied == False [$170_CE]
+        elif (message170.Data['FSRACCBrkngReqDenied'] != "false"):
+            print("FRACCBrkingReqDenied is true: ", message170.Data['FSRACCBrkngReqDenied'])
+
+        else: # everything passes so we move to Wait for Brake Release
+            return "brake_activation_to_wait_for_brake_release"
+
         return "brake_activation_to_activation_failure"
-        return "brake_activation_to_wait_for_brake_release"
+
+
+        # no "wait for" so dont have to return self??
+        # return "self"
+
 
 class WaitForBrakeRelease(XState):
     def __init__(self):
