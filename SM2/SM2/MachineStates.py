@@ -59,7 +59,6 @@ class Startup(XState):
     def __init__(self):
         super().__init__(["startup_to_passive"])
     def execute(self):
-        return "self"
         message337.update_data([0,0,0,0],True)
         message315.update_data([0,1,0],True)
         message1e1.update_data([0,0,0,0,0,0,0],True)
