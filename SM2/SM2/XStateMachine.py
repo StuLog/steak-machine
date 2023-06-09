@@ -6,10 +6,17 @@ import time
 class XState():
     def __init__(self,outcomes = ["default"]):
         self.outcomes = outcomes
+        self.host = None
     def execute(self):
         return outcomes[0]
     def getOutcomes(self):
         return self.outcomes
+    def regHost(self, host:XStateMachine):
+        self.host = host
+    def lock(self, delay):
+        if self.host == None:
+            return
+        self.host.lock(delay)
 
 #VState class - To be instantiated
 class VState(XState):
@@ -66,6 +73,7 @@ class XStateMachine():
             self.currentState = name
         self.statesDict[name] = state
         self.mapDict[name] = transitions
+        state.regHost(self)
         if self.debug :
             print("added State")
         return True
