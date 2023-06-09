@@ -166,7 +166,22 @@ class Deactivation(XState):
     def __init__(self):
         super().__init__(["deactivation_to_passive"])
     def execute(self):
-        return "self"
+        # !!! complete? not for us
+        complete = False
+        if (complete and message3e9.Data['VehSpdAvgDrvn'] == 0):
+            message315.update_data([message315.Data['ACCBSCE_ACCAct'],
+                                    4, message315.Data['ACCBSCE_ACCAccl']])
+            self.lock(2000)
+            # wait 2 sec
+        
+        message337.update_data(
+            [False, message337.Data['SWAR_ReqAct'], message337.Data['SWAR_ReqActV'], message337.Data['SWAR_TrgtAng'], message337.Data['StrWhlAngReqARC']])
+        message315.update_data([message315.Data['ACCBSCE_ACCAct'],
+                                1, message315.Data['ACCBSCE_ACCAccl']])
+        message2cb.update_data(
+            [False, message2cb.Data['ACCATC_ACCTyp'], message2cb.Data['ACCATC_DrvAstdGoSt'], message2cb.Data['ACCATC_SplREngInpR'], message2cb.Data['ACCATC_AxlTrqRq']])
+        message11.update_data([False, False, False, False])
+  
         return "deactivation_to_passive"
     
 #---initStateMachine---
