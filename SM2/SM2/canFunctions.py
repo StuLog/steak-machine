@@ -1,8 +1,15 @@
 import ics
 import cantools
 import can
+import string
+import numpy
 
 enable_use_server = True
+ics.override_library_name("/home/autodrive/CANbus/libicsneo/libicsneolegacy.so")
+CE_db = cantools.database.load_file("/home/autodrive/workspaces/ros2_ws/src/machine/machine/ADC_CE_2023.3.dbc")
+HS_db = cantools.database.load_file("/home/autodrive/workspaces/ros2_ws/src/machine/machine/ADC_HS_2023.3.dbc")
+SC_db = cantools.database.load_file("/home/autodrive/workspaces/ros2_ws/src/machine/machine/ADC_SC_2023.3.dbc")
+LS_db = cantools.database.load_file("/home/autodrive/workspaces/ros2_ws/src/machine/machine/ADC_LS_2023.3.dbc")
 
 class SMessage: #Class to send message, needs DBC to know which file to go from, name of the message, message id, followed by data
     def __init__(self, dbc: cantools.database.can.database.Database, message_name: string, message_id: string, Data: list):
@@ -12,11 +19,12 @@ class SMessage: #Class to send message, needs DBC to know which file to go from,
         self.Data = Data
         self.RollingCount = 2 #rolling count is on all messages
         self.age = 0
-    def update_data(self, Data: list, update_RC: bool): 
+    def update_data(self, Data: list, update_RC: bool = False):  
+        
         self.Data = Data                    #grab data
         if(update_RC):   #if message updates RC, set true and ad 1 to RC
             self.RollingCount += 1
-        if(self.RollingCount > 3): #RC is only two bits (xx) so if rolling count is >3 (11) 4 = 0, (00)
+        if(self.RollingCount > 3): #Rics.override_library_name("/home/autodrive/CANbus/libicsneo/libicsneolegacy.so")C is only two bits (xx) so if rolling count is >3 (11) 4 = 0, (00)
             self.RollingCount = 0
 
 def dev_name(device):
@@ -81,8 +89,8 @@ def get_protect_value(encoded_data: list, rolling_count: int, length: int, speci
     #print(Ptr)
     return(PrtVal)
 
-def transmit_can(device: ics.ics.NeoDevice, Message: SMessage): #device: ics.ics.NeoDevice
-    # print ("BEFORE, ", Message.Data)
+
+def transmit_can(device: ics.ics.NeoDevice, Message: SMessage,og_data:list): #device: ics.ics.NeoDevice
     message = ics.SpyMessage()
     #print(type(Message))
     if(Message.ID == "0x337"):
@@ -171,19 +179,12 @@ def transmit_can(device: ics.ics.NeoDevice, Message: SMessage): #device: ics.ics
                 new_data_list.append(i.split("x")[1])
                 data.append(int(new_data_list[x],16))
                 x += 1
-        # print(data)
-        # print(RC)
+        Message.Data[3] = int(Message.Data[3]*0.0625)
         data = tuple(data)
         message.NetworkID = ics.NETID_HSCAN
-        Message.Data[3]=Message.Data[3]/16
-        
-        
-        nmessage = CE_db.get_message_by_name("Park_Assist_Parallel_CE")
-        nmessage = can.Message(arbitration_id=0x337, data= data)
-        # print(CE_db.decode_message(nmessage.arbitration_id, nmessage.data))
-
 
     elif(Message.ID == "0x11"):
+        print("Message11 data: ", Message.Data)
         name_message = Message.DBC.get_message_by_name(Message.MessageName)
         data = name_message.encode({'Rolling_Count': Message.RollingCount, 'GlobalAutonomyStatus': Message.Data[0], 'SteeringCtrlActive': Message.Data[1], 'FrictionBrakeCtrlActive': Message.Data[2], 'PropulsionCtrlActive': Message.Data[3]})
         data_string = str(data)
@@ -267,17 +268,16 @@ def transmit_can(device: ics.ics.NeoDevice, Message: SMessage): #device: ics.ics
                 new_data_list.append(i.split("x")[1])
                 data.append(int(new_data_list[x],16))
                 x += 1
-        # print(data)
         data = tuple(data)
         message.NetworkID = ics.NETID_HSCAN
+   
     elif(Message.ID == "0x2cb"): #1,1,0,0,torque
-        # pdb.set_trace()
-        # print("AFTER: ", Message.Data)
+        Torque_Req = Message.Data[4]
         Message.Data[4] = int(Message.Data[4]/0.125) #dividing by scale factor
         #NOTE undetermined if scale factor is applied at this stage, scaling -3 to 5k nm to the -22 - 43k CAN value
         #alternative is after encoding it is applied to shift by three decimal spaces
         # print(Message.Data)
-        ProtVal = get_protect_value(Message.Data, Message.RollingCount, 25, "2cb")
+        ProtVal = get_protect_value(Message.Data,Message.RollingCount, 25, "2cb")
         #print(PrtVal)
         name_message = Message.DBC.get_message_by_name(Message.MessageName)
         RC = Message.RollingCount
@@ -295,11 +295,6 @@ def transmit_can(device: ics.ics.NeoDevice, Message: SMessage): #device: ics.ics
             hell0 = 0
         new_data_list = []
         data = []
-        
-        encoded_torque = bin(int((Message.Data[4]/8) + 22534)/0.125).split("b")
-        encoded_torque1 = encoded_torque[0:2]
-        encoded_torque2 = encoded_torque[3:]
-
         for i in data_list:
             if(len(i) > 3):
                 if(x == 2):
@@ -361,45 +356,48 @@ def transmit_can(device: ics.ics.NeoDevice, Message: SMessage): #device: ics.ics
         # data = tuple(data)
         # print(data)
         data = data[0:4]
-        # print("HERE", data)
         # data_bin = data[0:4]
         # for i in range(len(data)):
         #     data[i] = bin(data[i]).split("b")[1]
        
         # data = data[0] + data[1] + data[2] + data[3]     
         # #print(data)
-
+        torque_real = str(bin(int(Torque_Req+22534))).split("b")[1]
+        for n in range(16 - len(torque_real)):
+            torque_real = "0" + torque_real
+        byte2 = "01000" + torque_real[0:3] 
+        bitThree = torque_real[3:11]
+        bitfour = torque_real[11:] + "000"
+        data[1] = int(byte2,2)
+        data[2] = int(bitThree,2)
+        data[3] = int(bitfour,2)
+        
         # data = int(data, 2)
         # Message.Data = data
 
-        temp = int((Message.Data[4]/8+22534)/0.125)
-        # print([Message.Data[0:3],temp])
-        PrtVal = get_protect_value([Message.Data[0],Message.Data[1],Message.Data[2],Message.Data[3],temp], Message.RollingCount, 25, "2cb")
-        print(PrtVal, Message.Data[4], temp)
+        
+        Message.Data[4] = int((Torque_Req+22534)/0.125)
+        PrtVal = get_protect_value(Message.Data,Message.RollingCount, 25, "2cb")
         PrtVal = bin(PrtVal).split("b")[1]
         PrtVal = PrtVal.zfill(32)
         PrtValBin = [PrtVal[0:8], PrtVal[8:16], PrtVal[16:24], PrtVal[24:]]
+        Message.Data[4] = Torque_Req
 
-      
         for i in range(4):
             data.append(int(PrtValBin[i],2))
         
 
-
         # print(PrtVal)
+        
     
         # data.append(PrtValBin)
-        # print(data)
-        print("CHECK PROTECTION HERE: RC:", RC, " DATA: ",data)
+        print(data)
         data = tuple(data)
-        # print(data)
-        # print("HERE", data)
-        # Message.Data = tuple(data[0:4])
+        Message.Data = tuple(data[0:4])
 
         message.NetworkID = ics.NETID_HSCAN
         nmessage = HS_db.get_message_by_name("PPEI_Adaptive_Cruise_Axl_Trq_Req")
         nmessage = can.Message(arbitration_id=0x2cb, data= data)
-        Message.Data[4] = Message.Data[4]/8
         # print(HS_db.decode_message(nmessage.arbitration_id, nmessage.data))
 
     #print("Data 2 = " + str(data))
@@ -408,16 +406,17 @@ def transmit_can(device: ics.ics.NeoDevice, Message: SMessage): #device: ics.ics
     # First channel of CAN on the device
     # msg parameter here can also be a tuple of messages
     # print(message.NetworkID)
-    
-    # nmessage = SC_db.get_message_by_name("AVState")
-    # nmessage = can.Message(arbitration_id=0x11, data= data)(i[1:],16) for i in data_list[1:]]
-    # print(SC_db.decode_message(nmessage.arbitration_id, nmessage.data))
-    if Message.ID == "0x2cb":
-        print("BEFORE", time.time())
+
+    message.NetworkID = ics.NETID_HSCAN
+    nmessage = Message.DBC.get_message_by_name(Message.MessageName)
+    nmessage = can.Message(arbitration_id=int(Message.ID,16), data= data)
+    # print(Message.DBC.decode_message(nmessage.arbitration_id, nmessage.data))
+
+
+    Message.Data = og_data
     ics.transmit_messages(device, message)
-    if Message.ID == "0x2cb":
-        print("AFTER", time.time())
     #print("sucess")
     # StrWhlTctlFdbkReqActRC +=1
         # q-=1
-        # print(q)        # print(q)
+        # print(q)
+
