@@ -59,6 +59,7 @@ class Startup(XState):
     def __init__(self):
         super().__init__(["startup_to_passive"])
     def execute(self):
+        return "self"
         message337.update_data([0,0,0,0],True)
         message315.update_data([0,1,0],True)
         message1e1.update_data([0,0,0,0,0,0,0],True)
@@ -215,6 +216,18 @@ class PropulsionActivation(XState):
         super().__init__(["propulsion_activation_to_activation_failure","propulsion_activation_to_active_mode_loop"])
     def execute(self):
         return "self"
+        Not_good = True
+        while(Not_good):
+            message2cb.update_data([0,0,0,0,0])
+            message1e1.update_data([1,0,0,0,3])
+            #TODO WAIT 100ms
+            message1e1.update_data([1,0,0,0,1])
+            #TODO WAIT 500ms
+            # Check TorqueAuthActive == True
+            if(message7e8.Data == 1):
+                Not_good = False
+            message2cb.update_data([0,1,0,0,0], True)
+            message11.update_data([2,1,1,1], True)
         return "propulsion_activation_to_activation_failure"
         return "propulsion_activation_to_active_mode_loop"
 
