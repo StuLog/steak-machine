@@ -232,14 +232,17 @@ class BrakeActivation(XState):
 class WaitForBrakeRelease(XState):
     def __init__(self):
         super().__init__(["wait_for_brake_release_to_activation_failure","wait_for_brake_release_to_steering_activation"])
+        self.hasReleased = False
     def execute(self):
         # Wait for BrkPedTrvlAchvd == False [$F1_HS]
-        if (messagef1.Data['BrkPedTrvlAchvd'] != "false"):
+        if (messagef1.Data['BrkPedTrvlAchvd'] != "false" and not self.hasReleased):
             return "self"
 
-        # Wait 1 second
-        # ------------------ ADD CODE JAI -----------------
-
+        if not self.hasReleased:
+            self.hasReleased = True
+            self.lock(1000)
+            return "self"
+        self.hasReleased = False
 
         # Check VehSpdAvgDrvn == 0 [$3E9_HS]
         if (message3e9.Data['VehSpdAvgDrvn'] != 0):
