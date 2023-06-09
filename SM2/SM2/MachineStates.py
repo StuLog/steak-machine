@@ -1,25 +1,19 @@
-#Library Imports
 import rclpy
 import ics
 import cantools
 import can
+import threading
 from rclpy.node import Node
+from .XStateMachine import *
+from .canFunctions import *
+from custom_interfaces.msg import StanleyInfo, CANmsgs, ControlCommands
 
-#Custom File imports
-from XStateMachine import XState
-from canFunctions import SMessage
-from canFunctions import open_device
-from canFunctions import get_protect_value
-from canFunctions import transmit_can
 
-#Constants
-DEBUG_PRINT = True
 
-#Open devices
-HS_LS_tx_rx_dev = open_device(1)
+active_loop = False
+# HS_LS_tx_rx_dev = open_device(1)
 SC_CE_tx_rx_dev = open_device(0)
 
-#Magic shit and dbc files
 ics.override_library_name("/home/autodrive/CANbus/libicsneo/libicsneolegacy.so")
 CE_db = cantools.database.load_file("/home/autodrive/CANbus/ADC_CE.dbc")
 SC_db = cantools.database.load_file("/home/autodrive/CANbus/ADC_SC.dbc")
@@ -53,6 +47,87 @@ message7e8 = SMessage(HS_db, '7e8', '0x7e8', [0])
 message335 = SMessage(CE_db, 'Electric_Power_Steering_CE', '0x335', [0,0,0])
 
 
+
+"""ROS node"""
+# transmit can node
+class SteakMachineNode(Node):
+    def __init__(self):
+        super().__init__('steak_machine')
+        self.rate = self.create_rate(100)
+        self.statemachine = initStateMachine(self.checkForActive,self.get_ros_time,debugToggle=True)
+
+        
+
+        #ControlCommands is for float32 torque              DOUBLE CHECK THIS
+        #                       int16 steering_wheel_angle
+        #                       float32 braking_input
+        if(active_loop):
+            self.control_commands_sub = self.create_subscription(ControlCommands, "/control_commands", self.control_callback, 10)  
+
+    def control_callback(self,msg):
+        #Stuart change global variables
+        message337.update_data([1,1,0,msg.steering_wheel_angle])
+        message315.update_data([1,2,msg.brake])
+        message2cb.update_data([1,1,0,0,msg.torque])
+
+    def run(self):
+        ros_time = self.get_ros_time()
+        counter = 0
+       
+        while rclpy.ok():
+            self.statemachine()
+            if(counter%3 == 0):
+                message1e1.update_data(message1e1.Data,True)
+                transmit_can(SC_CE_tx_rx_dev, message1e1,message1e1.Data) #Hs
+                # self.get_logger().info('1e1')
+            if(counter%4 == 0):
+                message315.update_data(message315.Data,True)
+                message2cb.update_data(message2cb.Data,True)
+                transmit_can(SC_CE_tx_rx_dev, message315,message315.Data) #Hs
+                transmit_can(SC_CE_tx_rx_dev, message2cb,message2cb.Data) #Hs
+                # self.get_logger().info('315,2cb')
+            if(counter%10 == 0):
+                message11.update_data(message11.Data,True)
+                transmit_can(SC_CE_tx_rx_dev, message11,message11.Data)
+                # self.get_logger().info('11')
+
+            message337.update_data(message337.Data,True)
+            transmit_can(SC_CE_tx_rx_dev, message337, message337.Data)
+
+            # self.get_logger().info('337')
+            counter += 1
+            self.rate.sleep()
+
+    def get_ros_time(self):
+        ros_time = (self.get_clock().now().nanoseconds)/10**6
+        return ros_time
+    
+    def checkForActive(self):
+        active_loop =  self.statemachine.getCurrentState() == "ActiveModeLoop"
+    
+def main(args=None):
+    rclpy.init(args=args)
+
+    steakMachineNode = SteakMachineNode()
+    # Spin in a separate thread
+    thread = threading.Thread(target=rclpy.spin, args=(steakMachineNode,), daemon=True)
+    thread.start()
+
+    try:
+        steakMachineNode.run()
+    except KeyboardInterrupt:
+        pass
+
+    steakMachineNode.destroy_node()
+    rclpy.shutdown()
+    thread.join()    
+
+
+if __name__ == '__main__':
+    main()
+
+
+
 #------State Machine and States-------
 # exec by Stuart - Done
 class Startup(XState):
@@ -63,15 +138,19 @@ class Startup(XState):
         message315.update_data([0,1,0],True)
         message1e1.update_data([0,0,0,0,0,0,0],True)
         message2cb.update_data([0,0,0,0,0],True)
-        message11.update_data([1,0,0],True)
+        message11.update_data([1,0,0,0],True)
         return "startup_to_passive"
 
 # stuart!
 class Passive(XState):
     def __init__(self):
         super().__init__(["passive_to_activation_condition_check"])
+        self.runOnce = False
     def execute(self):
-        return "self"
+        if not self.runOnce:
+            self.lock(10000)
+            self.runOnce = True
+            return "self"
         return "passive_to_activation_condition_check"
 
 # exec by Ryan
@@ -106,75 +185,75 @@ class ActivationConditionCheck(XState):
         checksPassed = True
 
         # Check Engine Run Active == True
-        if self.messagec9.Data['EngRunAtv'] != "true":
-            print("EngRunAtv not True: ", self.messagec9.Data['EngRunAtv'])
+        if messagec9.Data['EngRunAtv'] != "true":
+            print("EngRunAtv not True: ",  messagec9.Data['EngRunAtv'])
             checksPassed = False
 
         # Check abs(SteerAngle) < 10 
-        elif abs(float(self.message1e5.Data['StrWhAng'])) >= 10:
-            print("Steering wheel is over 10 degrees: ", self.message1e5.Data['StrWhAng'])
+        elif abs(float( message1e5.Data['StrWhAng'])) >= 10:
+            print("Steering wheel is over 10 degrees: ",  message1e5.Data['StrWhAng'])
             checksPassed = False
 
         # Check abs(LKADrvAppldTrq) < 0.2
-        elif abs(float(self.message184.Data['LKADrvAppldTrq'])) >= 0.2:
-            print("Steering torque above 0.05 Nm: ", self.message184.Data['LKADrvAppldTrq'])
+        elif abs(float( message184.Data['LKADrvAppldTrq'])) >= 0.2:
+            print("Steering torque above 0.05 Nm: ",  message184.Data['LKADrvAppldTrq'])
             checksPassed = False
 
         # Check 184 Message Age < 300ms
-        elif self.message184.age >= 0.3:
-            print("184 aged out - please wait: ", self.message184.age)
+        elif  message184.age >= 0.3:
+            print("184 aged out - please wait: ",  message184.age)
             checksPassed = False
 
         # Check VehSpdAvgDrvn == 0
-        elif float(self.message3e9.Data['VehSpdAvgDrvn']) != 0:
-            print("Vehicle is not stopped: ", self.message3e9.Data['VehSpdAvgDrvn'])
+        elif float( message3e9.Data['VehSpdAvgDrvn']) != 0:
+            print("Vehicle is not stopped: ",  message3e9.Data['VehSpdAvgDrvn'])
             checksPassed = False
 
         # Check VehSpdAvgNDrvn == 0
-        elif float(self.message3e9.Data['VehSpdAvgNDrvn']) != 0:
-            print("Vehicle is not stopped(NDrvn): ", self.message3e9.Data['VehSpdAvgNDrvn'])
+        elif float( message3e9.Data['VehSpdAvgNDrvn']) != 0:
+            print("Vehicle is not stopped(NDrvn): ",  message3e9.Data['VehSpdAvgNDrvn'])
             checksPassed = False
 
         # Check 3E9 Message Age < 300ms
-        elif self.message3e9.age >= 0.3:
-            print("3e9 aged out - please wait: ", self.message3e9.age)
+        elif  message3e9.age >= 0.3:
+            print("3e9 aged out - please wait: ",  message3e9.age)
             checksPassed = False
 
         # Check BrkPedTrvlAchvd == True
-        elif self.messagef1.Data['BrkPedTrvlAchvd'] != "true":
-            print("Brake Pedal Not Depressed: ", self.messagef1.Data['BrkPedTrvlAchvd'])
+        elif  messagef1.Data['BrkPedTrvlAchvd'] != "true":
+            print("Brake Pedal Not Depressed: ",  messagef1.Data['BrkPedTrvlAchvd'])
             checksPassed = False
 
         # Check ElecPrkBrkStat == 'Released'
-        elif self.message230.Data['ElecPrkBrkStat'] != "Released":
-            print("Parking Brake Applied: ", self.message230.Data['ElecPrkBrkStat'])
+        elif  message230.Data['ElecPrkBrkStat'] != "Released":
+            print("Parking Brake Applied: ",  message230.Data['ElecPrkBrkStat'])
             checksPassed = False
 
         # Check 170 Message Age is < 30ms
-        elif self.message170.age >= 0.03:
-            print("170 self.message aged out - please wait: ", self.message170.age)
+        elif  message170.age >= 0.03:
+            print("170  message aged out - please wait: ",  message170.age)
             checksPassed = False
 
         # Check Driver Seatbelt Attached == True
-        elif self.message12a.Data['DrSbltAtc'] != "true":
-            print("Please Fasten Your Seatbelt Silly: ", self.message12a.Data['DrSbltAtc'])
+        elif  message12a.Data['DrSbltAtc'] != "true":
+            print("Please Fasten Your Seatbelt Silly: ",  message12a.Data['DrSbltAtc'])
             checksPassed = False
 
         # Check All Door Ajar Switches == False
-        elif self.message12a.Data['PDAjrSwAtv'] != "false":
-            print("Passenger Door Open: ", self.message12a.Data['PDAjrSwAtv'])
+        elif  message12a.Data['PDAjrSwAtv'] != "false":
+            print("Passenger Door Open: ",  message12a.Data['PDAjrSwAtv'])
             checksPassed = False
 
-        elif self.message12a.Data['DDAjrSwAtv'] != "false":
-            print("Driver Door Open: ", self.message12a.Data['DDAjrSwAtv'])
+        elif  message12a.Data['DDAjrSwAtv'] != "false":
+            print("Driver Door Open: ",  message12a.Data['DDAjrSwAtv'])
             checksPassed = False
 
-        elif self.message12a.Data['RLDoorAjarSwAct'] != "false":
-            print("Rear Left Door Open: ", self.message12a.Data['RLDoorAjarSwAct'])
+        elif  message12a.Data['RLDoorAjarSwAct'] != "false":
+            print("Rear Left Door Open: ",  message12a.Data['RLDoorAjarSwAct'])
             checksPassed = False
             
-        elif self.message12a.Data['RRDoorAjarSwAct'] != "false": 
-            print("Rear Right Door Open: ", self.message12a.Data['RRDoorAjarSwAct'])
+        elif  message12a.Data['RRDoorAjarSwAct'] != "false": 
+            print("Rear Right Door Open: ",  message12a.Data['RRDoorAjarSwAct'])
             checksPassed = False
 
         if checksPassed:
@@ -183,7 +262,7 @@ class ActivationConditionCheck(XState):
         else:
             return "activation_condition_check_to_activation_failure"
 
-        return "self"
+
         
 
 # Ryan
@@ -193,7 +272,7 @@ class BrakeActivation(XState):
         self.runOnce = False
     def execute(self):
         
-        if not self.runOnce
+        if not self.runOnce:
             # AVState.GlobalAutonomyStatus = Active
             # AVState.FrictionBrakeCtrlActive = True
             message11.update_data([2,0,1,0])
@@ -289,7 +368,7 @@ class SteeringActivation(XState):
                 return "self"
             else:
                 return "steering_activation_to_activation_failure"
-        else 
+        else :
             self.stage = 0
             # Check ElecPwrStrAvalStat == Active
             if self.message335.Data['ElecPwrStrAvalStat'] != "Active":
@@ -305,18 +384,18 @@ class PropulsionActivation(XState):
         super().__init__(["propulsion_activation_to_activation_failure","propulsion_activation_to_active_mode_loop"])
         self.stage = 0
     def execute(self):
-        if self.stage = 0:
+        if self.stage == 0:
             message2cb.update_data([0,0,0,0,0])
             message1e1.update_data([1,0,0,0,3])
             self.stage = 1
             self.lock(0.1)
             return "self"
-        elif self.stage = 1:
+        elif self.stage == 1:
             message1e1.update_data([1,0,0,0,1])
             self.stage = 2
             self.lock(0.5)
             return "self"
-        elif self.stage = 2:
+        elif self.stage == 2:
             self.stage = 0
             if(message7e8.Data == 1):
                 message2cb.update_data([0,1,0,0,0], True)
@@ -393,9 +472,9 @@ class Deactivation(XState):
     
 #---initStateMachine---
 #Returns an initialized state machine 
-def initStateMachine():
+def initStateMachine(onStateChange:Callable, getTime:Callable, debugToggle:bool = True):
     #Initialize state machine and add an output message
-    machine = XStateMachine(["should_not_appear"]) 
+    machine = XStateMachine(["should_not_appear"], onStateChange=onStateChange, getTime=getTime,debugToggle=debugToggle) 
 
     #Add each state and connections to the machine
     #Startup, goes to passive
