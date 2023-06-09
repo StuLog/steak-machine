@@ -1,5 +1,6 @@
 #Import typing hint
 from typing import Callable
+import time
 
 #XState class - To be overwritten
 class XState():
@@ -14,7 +15,7 @@ class XState():
 class VState(XState):
     def VStateEmp():
         pass
-    def __init__(self,outcomes = ["default"], executeCallback:Callable = VStateEmp, debugEnable:bool = True):
+    def __init__(self,outcomes = ["default"], executeCallback:Callable = VStateEmp ,debugEnable:bool = True):
         self.call = executeCallback
         self.outcomes = outcomes
     def execute(self):
@@ -31,14 +32,15 @@ class VState(XState):
 class XStateMachine():
     
     #Default stateChange method, does nothing
-    def stateChange():
-        return
+    def XStateMachineEmpty():
+        pass
     
     #Initialize XStateMachine
     #@param outcomes the list of outcomes possible for the machine as a whole
     #@param debugToggle *optional*, default False. True allows debug printing
     #@param onStateChange *optional* function to call on state change
-    def __init__(self, outcomes:list = ["default"], debugToggle:bool = False, onStateChange: Callable = stateChange):
+    #@param 
+    def __init__(self, outcomes:list = ["default"], debugToggle:bool = False, onStateChange: Callable = XStateMachineEmpty, getTime:Callable = time.time, onLockCall:Callable = XStateMachineEmpty):
         self.machineOutcomes = outcomes
         self.statesDict = {}
         self.mapDict = {}
@@ -46,6 +48,11 @@ class XStateMachine():
         self.currentState = ""
         self.debug = debugToggle
         self.stateChange = onStateChange
+        self.getTime = getTime
+        self.onLockCall = onLockCall
+        self.isLocked = False
+        self.lockTime = 0
+        self.lockDuration = 0
     
     #Add a state to the machine
     #@param name String name of the state (MUST BE CONSISTENT WITH REDIRECTS)
@@ -65,6 +72,12 @@ class XStateMachine():
     
     #Runs the state machine once, updating states and potentially printing debug
     def __call__(self):
+        if self.isLocked:
+            if self.getTime() - self.lockTime >= self.lockDuration:
+                self.isLocked = False
+            else:
+                return("SM Locked for ", self.lockDuration +self.lockTime - self.getTime()," Time Units")
+            
         if self.currentState in self.statesDict.keys():
             prevstate = self.currentState
             outcome = self.statesDict[self.currentState].execute()
@@ -110,6 +123,14 @@ class XStateMachine():
     #Returns the current state of the machine
     def getCurrentState(self):
         return self.currentState
+    
+    #Locks the state machine for a duration
+    def lock(self, duration):
+        self.lockTime = self.getTime()
+        self.lockDuration = duration
+        self.isLocked = True
+        self.onLockCall()
+        return
 
 #---testing classes---
 class testA(XState):
