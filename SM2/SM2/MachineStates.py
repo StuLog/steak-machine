@@ -125,3 +125,60 @@ class Deactivation(XState):
     def execute(self):
         return "self"
         return "deactivation_to_passive"
+    
+#---initStateMachine---
+#Returns an initialized state machine 
+def initStateMachine():
+    #Initialize state machine and add an output message
+    machine = XStateMachine(["should_not_appear"]) 
+
+    #Add each state and connections to the machine
+    
+    #Startup, goes to passive
+    machine.addState("Startup", Startup(), 
+                transitions = {"startup_to_passive":"Passive"})
+    
+    #Passive, goes to ActivationConditionCheck
+    machine.addState("Passive", Passive(), 
+                transitions = {"passive_to_activation_condition_check":"ActivationConditionCheck"})
+    
+    #ActivationConditionCheck, goes to ActivationFailure and BrakeActivation
+    machine.addState("ActivationConditionCheck", ActivationConditionCheck(),
+                transitions = {"activation_condition_check_to_activation_failure":"ActivationFailure",
+                                "activation_condition_check_to_brake_activation":"BrakeActivation"})
+    
+    #ActivationFailure, goes to Passive
+    machine.addState("ActivationFailure", ActivationFailure(), 
+                transitions = {"activation_failure_to_passive":"Passive"})
+    
+    #Activation, goes to BrakeActivation or WaitForBrakeRelease
+    machine.addState("BrakeActivation", BrakeActivation(),
+                transitions = {"brake_activation_to_activation_failure":"ActivationFailure",
+                              "brake_activation_to_wait_for_brake_release":"WaitForBrakeRelease"})
+    
+    #WaitForBrakeRelease, goes to ActivationFailure
+    machine.addState("WaitForBrakeRelease", WaitForBrakeRelease(), 
+                transitions = {"wait_for_brake_release_to_activation_failure":"ActivationFailure",
+                              "wait_for_brake_release_to_steering_activation":"SteeringActivation"})
+    
+    #SteeringActivation, goes to PropulsionActivation or ActivationFailer
+    machine.addState("SteeringActivation", SteeringActivation(), 
+                transitions = {"steering_activation_to_propulsion_activation":"PropulsionActivation",
+                             "steering_activation_to_activation_failure":"ActivationFailure"})
+    
+    #PropulsionActivation, goes to ActivationFailure or ActiveModeLoop
+    machine.addState("PropulsionActivation", PropulsionActivation(),
+                transitions = {"propulsion_activation_to_activation_failure":"ActivationFailure",
+                              "propulsion_activation_to_active_mode_loop":"ActiveModeLoop"})
+    
+    #ActiveModeLoop, goes to Deactivation
+    machine.addState("ActiveModeLoop", ActiveModeLoop(), 
+                transitions = {"active_mode_loop_to_deactivation":"Deactivation"})
+    
+    #Deactivation, goes to Passive
+    machine.addState("Deactivation", Deactivation(), 
+                transitions = {"deactivation_to_passive":"Passive"})
+    
+    #ensure start state is correct
+    machine.setStartState("Startup")
+    return machine
