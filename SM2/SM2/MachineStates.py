@@ -65,54 +65,6 @@ class Startup(XState):
         message1e1.update_data([0,0,0,0,0,0,0],True)
         message2cb.update_data([0,0,0,0,0],True)
         message11.update_data([1,0,0],True)
-<<<<<<< HEAD
-=======
-
-        if self.messagec9.Data['EngRunAtv'] != "true":
-            print("EngRunAtv not True: ", self.messagec9.Data['EngRunAtv'])
-
-        elif abs(float(self.message1e5.Data['StrWhAng'])) > 10:
-            print("Steering wheel is over 10 degrees: ", self.message1e5.Data['StrWhAng'])
-
-        elif abs(float(self.message184.Data['LKADrvAppldTrq'])) > (0.2+self.LKAD_off): #TODO VIOlATION CONSISTENT
-            print("Steering torque above 0.05 Nm: ", self.message184.Data['LKADrvAppldTrq'])
-
-        elif self.message184.age > 0.3:
-            print("184 aged out - please wait: ", self.message184.age)
-
-        elif float(self.message3e9.Data['VehSpdAvgDrvn']) != 0:
-            print("Vehicle is not stopped: ", self.message3e9.Data['VehSpdAvgDrvn'])
-
-        elif float(self.message3e9.Data['VehSpdAvgNDrvn']) != 0:
-            print("Vehicle is not stopped(NDrvn): ", self.message3e9.Data['VehSpdAvgNDrvn'])
-
-        elif self.message3e9.age > 0.3:
-            print("3e9 aged out - please wait: ", self.message3e9.age)
-
-        elif self.messagef1.Data['BrkPedTrvlAchvd'] != "true":
-            print("Brake Pedal Not Depressed: ", self.messagef1.Data['BrkPedTrvlAchvd'])
-
-        elif self.message230.Data['ElecPrkBrkStat'] != "Released":
-            print("Parking Brake Applied: ", self.message230.Data['ElecPrkBrkStat'])
-
-        elif self.message170.age > 0.03:
-            print("170 self.message aged out - please wait: ", self.message170.age)
-
-        elif self.message12a.Data['DrSbltAtc'] != "true":
-            print("Please Fasten Your Seatbelt Silly: ", self.message12a.Data['DrSbltAtc'])
-
-        elif self.message12a.Data['PDAjrSwAtv'] != "false":  # TODO ASSUMING THIS IS A TRUE WHEN OPEN SWITCH buT UNCLEAR
-            print("Passenger Door Open: ", self.message12a.Data['PDAjrSwAtv'])
-
-        elif self.message12a.Data['DDAjrSwAtv'] != "false":  # TODO ASSUMING THIS IS A TRUE WHEN OPEN SWITCH buT UNCLEAR
-            print("Driver Door Open: ", self.message12a.Data['DDAjrSwAtv'])
-
-        elif self.message12a.Data['RLDoorAjarSwAct'] != "false":  # TODO ASSUMING THIS IS A TRUE WHEN OPEN SWITCH buT UNCLEAR
-            print("Rear Left Door Open: ", self.message12a.Data['RLDoorAjarSwAct'])
-            
-        elif self.message12a.Data['RRDoorAjarSwAct'] != "false":  # TODO ASSUMING THIS IS A TRUE WHEN OPEN SWITCH buT UNCLEAR
-            print("Rear Right Door Open: ", self.message12a.Data['RRDoorAjarSwAct'])
->>>>>>> 6037df8 (oops)
         return "startup_to_passive"
 
 # exec by Michael  
@@ -264,6 +216,18 @@ class PropulsionActivation(XState):
         super().__init__(["propulsion_activation_to_activation_failure","propulsion_activation_to_active_mode_loop"])
     def execute(self):
         return "self"
+        Not_good = True
+        while(Not_good):
+            message2cb.update_data([0,0,0,0,0])
+            message1e1.update_data([1,0,0,0,3])
+            #TODO WAIT 100ms
+            message1e1.update_data([1,0,0,0,1])
+            #TODO WAIT 500ms
+            # Check TorqueAuthActive == True
+            if(message7e8.Data == 1):
+                Not_good = False
+            message2cb.update_data([0,1,0,0,0], True)
+            message11.update_data([2,1,1,1], True)
         return "propulsion_activation_to_activation_failure"
         return "propulsion_activation_to_active_mode_loop"
 
