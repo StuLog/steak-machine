@@ -66,7 +66,7 @@ class Startup(XState):
         message11.update_data([1,0,0],True)
         return "startup_to_passive"
 
-# exec by Michael  
+# stuart!
 class Passive(XState):
     def __init__(self):
         super().__init__(["passive_to_activation_condition_check"])
@@ -111,17 +111,17 @@ class ActivationConditionCheck(XState):
             checksPassed = False
 
         # Check abs(SteerAngle) < 10 
-        elif abs(float(self.message1e5.Data['StrWhAng'])) > 10:
+        elif abs(float(self.message1e5.Data['StrWhAng'])) >= 10:
             print("Steering wheel is over 10 degrees: ", self.message1e5.Data['StrWhAng'])
             checksPassed = False
 
         # Check abs(LKADrvAppldTrq) < 0.2
-        elif abs(float(self.message184.Data['LKADrvAppldTrq'])) > 0.2:
+        elif abs(float(self.message184.Data['LKADrvAppldTrq'])) >= 0.2:
             print("Steering torque above 0.05 Nm: ", self.message184.Data['LKADrvAppldTrq'])
             checksPassed = False
 
         # Check 184 Message Age < 300ms
-        elif self.message184.age > 0.3:
+        elif self.message184.age >= 0.3:
             print("184 aged out - please wait: ", self.message184.age)
             checksPassed = False
 
@@ -136,7 +136,7 @@ class ActivationConditionCheck(XState):
             checksPassed = False
 
         # Check 3E9 Message Age < 300ms
-        elif self.message3e9.age > 0.3:
+        elif self.message3e9.age >= 0.3:
             print("3e9 aged out - please wait: ", self.message3e9.age)
             checksPassed = False
 
@@ -151,7 +151,7 @@ class ActivationConditionCheck(XState):
             checksPassed = False
 
         # Check 170 Message Age is < 30ms
-        elif self.message170.age > 0.03:
+        elif self.message170.age >= 0.03:
             print("170 self.message aged out - please wait: ", self.message170.age)
             checksPassed = False
 
@@ -190,19 +190,23 @@ class ActivationConditionCheck(XState):
 class BrakeActivation(XState):
     def __init__(self):
         super().__init__(["brake_activation_to_activation_failure","brake_activation_to_wait_for_brake_release"])
+        self.runOnce = False
     def execute(self):
-
-        # AVState.GlobalAutonomyStatus = Active
-        # AVState.FrictionBrakeCtrlActive = True
-        message11.update_data([2,0,1,0])
-
-        # Brake.mode = Hold
-        message315.update_data([0,5,0])
-
-        # Wait 1 second
-        # ------------- TO DO ------------
-        # PLAN TO DO EXTERNALLY (i.e., dont call state machine for 1s)
-
+        
+        if not self.runOnce
+            # AVState.GlobalAutonomyStatus = Active
+            # AVState.FrictionBrakeCtrlActive = True
+            message11.update_data([2,0,1,0])
+            # Brake.mode = Hold
+            message315.update_data([0,5,0])
+            
+            #lock for 1 second
+            self.lock(1000)
+            self.runOnce = True
+            return "self"
+        
+        self.runOnce = False
+        
         # Check $170_CE Message Age < 50ms
         if (message170.age >= 0.05):
             print("170_CE OUT OF SCOPE AGE", message170.age)
